@@ -1,0 +1,128 @@
+import java.util.LinkedList;
+import java.util.Queue;
+
+class CounterEmptyException extends Exception {
+    public CounterEmptyException(String message) {
+        super(message);
+    }
+}
+
+class CoffeeShop {
+    private final Queue<Integer> counter = new LinkedList<>();
+    private final int MAX_CAPACITY = 3;
+
+    public synchronized void prepareCoffee(int baristaId) throws InterruptedException {
+        while (counter.size() == MAX_CAPACITY) {
+            System.out.println("Barista " + baristaId + " is waiting. Counter is full.");
+            wait();
+        }
+        counter.add(1); // Prepare one coffee
+        System.out.println("Barista " + baristaId + " prepared coffee. Counter: " + counter.size());
+        notifyAll();
+    }
+
+    public synchronized void pickUpCoffee(int customerId, int quantity) throws InterruptedException, CounterEmptyException {
+        while (counter.size() < quantity) {
+            throw new CounterEmptyException("Customer " + customerId + " cannot pick up coffee. Counter is empty.");
+        }
+        for (int i = 0; i < quantity; i++) {
+            counter.poll(); // Customer picks up coffee
+        }
+        System.out.println("Customer " + customerId + " picked up " + quantity + " coffee(s). Counter: " + counter.size());
+        notifyAll();
+    }
+
+    public synchronized void sampleCoffee(int reviewerId) throws InterruptedException {
+        while (counter.isEmpty()) {
+            System.out.println("Coffee Reviewer is waiting. Counter is empty.");
+            wait();
+        }
+        counter.poll(); // Reviewer samples one coffee
+        System.out.println("Coffee Reviewer sampled coffee. Counter: " + counter.size());
+        notifyAll();
+    }
+}
+
+class Barista implements Runnable {
+    private final CoffeeShop coffeeShop;
+    private final int id;
+    private final int coffeeCount;
+
+    public Barista(CoffeeShop coffeeShop, int id, int coffeeCount) {
+        this.coffeeShop = coffeeShop;
+        this.id = id;
+        this.coffeeCount = coffeeCount;
+    }
+
+    @Override
+    public void run() {
+        try {
+            for (int i = 0; i < coffeeCount; i++) {
+                coffeeShop.prepareCoffee(id);
+                Thread.sleep(100); // Simulate time taken to prepare coffee
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+class Customer implements Runnable {
+    private final CoffeeShop coffeeShop;
+    private final int id;
+    private final int coffeeCount;
+
+    public Customer(CoffeeShop coffeeShop, int id, int coffeeCount) {
+        this.coffeeShop = coffeeShop;
+        this.id = id;
+        this.coffeeCount = coffeeCount;
+    }
+
+    @Override
+    public void run() {
+        try {
+            coffeeShop.pickUpCoffee(id, coffeeCount);
+        } catch (InterruptedException | CounterEmptyException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+}
+
+class CoffeeReviewer implements Runnable {
+    private final CoffeeShop coffeeShop;
+    private final int id;
+
+    public CoffeeReviewer(CoffeeShop coffeeShop, int id) {
+        this.coffeeShop = coffeeShop;
+        this.id = id;
+    }
+
+    @Override
+    public void run() {
+        try {
+            coffeeShop.sampleCoffee(id);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+public class CoffeeShopSimulation {
+    public static void main(String[] args) {
+        CoffeeShop coffeeShop = new CoffeeShop();
+
+        Thread barista1 = new Thread(new Barista(coffeeShop, 1, 2));
+        Thread barista2 = new Thread(new Barista(coffeeShop, 2, 3));
+        Thread customer1 = new Thread(new Customer(coffeeShop, 1, 1));
+        Thread customer2 = new Thread(new Customer(coffeeShop, 2, 2));
+        Thread customer3 = new Thread(new Customer(coffeeShop, 3, 1));
+        Thread reviewer = new Thread(new CoffeeReviewer(coffeeShop, 1));
+
+        barista1.start();
+        barista2.start();
+        customer1.start();
+        customer2.start();
+        customer3.start();
+        reviewer.start();
+    }
+}
